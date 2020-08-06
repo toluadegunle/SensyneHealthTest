@@ -1,0 +1,145 @@
+   
+
+/**
+
+ How many different species of mushroom are there, if a species is identified by the attributes 1-20? 
+ 73 Different Species
+
+**/
+   Select count(*) as Count_of_Species 
+   from
+         (
+			select distinct
+			cap_shape,
+			cap_color,
+			odor,
+			gill_size,
+			gill_color,
+			stalk_color_above_ring,
+			veil_color,
+			ring_type,
+			spore_print_color
+			from field_data  
+		) distinct_species
+    ;  
+
+
+
+/**
+
+ Does habitat and cap-color correlate?
+# correlation_coefficient_population : 0.704943105984641
+# correlation_coefficient_sample : 0.7049431038811658 
+
+The Pearson coefficient is close to +1 which indicates a strong positive correlation.
+
+**/
+
+SELECT  
+        -- For Population
+        (avg(habitat * cap_color) - avg(habitat) * avg(cap_color)) / 
+        (sqrt(avg(habitat * habitat) - avg(habitat) * avg(habitat)) * sqrt(avg(cap_color * cap_color) - avg(cap_color) * avg(cap_color))) 
+        AS correlation_coefficient_population,
+        -- For Sample
+        (count(*) * sum(habitat * cap_color) - sum(habitat) * sum(cap_color)) / 
+        (sqrt(count(*) * sum(habitat * habitat) - sum(habitat) * sum(habitat)) * sqrt(count(*) * sum(cap_color * cap_color) - sum(cap_color) * sum(cap_color))) 
+        AS correlation_coefficient_sample
+FROM (
+		select 
+		Time as ts,
+		count(distinct(habitat)) as habitat,
+		count(distinct(cap_color)) as cap_color
+		FROM field_data
+		Group By Time
+	) as stage1 ;
+
+
+
+
+
+/**
+
+Considering a specific geographical point, what colours should we be able to see in the 10 km around it?
+
+
+**/
+
+
+
+
+DROP FUNCTION IF EXISTS GetDistanceKM;
+DELIMITER $$
+CREATE FUNCTION `GetDistanceKM`(
+lat1 DOUBLE, lng1 DOUBLE, lat2 DOUBLE, lng2 DOUBLE
+) RETURNS double
+DETERMINISTIC
+BEGIN
+    DECLARE radlat1 DOUBLE;
+    DECLARE radlat2 DOUBLE;
+    DECLARE theta DOUBLE;
+    DECLARE radtheta DOUBLE;
+    DECLARE dist DOUBLE;
+    SET radlat1 = PI() * lat1 / 180;
+    SET radlat2 = PI() * lat2 / 180;
+    SET theta = lng1 - lng2;
+    SET radtheta = PI() * theta / 180;
+    SET dist = sin(radlat1) * sin(radlat2) + cos(radlat1) * cos(radlat2) * cos(radtheta);
+    SET dist = acos(dist);
+    SET dist = dist * 180 / PI();
+    SET dist = dist * 60 * 1.1515;
+    SET dist = dist * 1.609344;
+RETURN dist;
+END$$
+DELIMITER ;
+
+
+
+select  distinct
+cc.description as cap_color, 
+gc.description as gill_color,
+scar.description as stalk_color_above_ring  ,
+vc.description as veil_color,
+spc.description as spore_print_color
+from
+field_data as fd
+left join  cap_color cc on cc.id = fd.cap_color
+left join  gill_color gc on gc.id = fd.gill_color
+left join  stalk_color_above_ring scar on scar.id = fd.stalk_color_above_ring 
+left join  veil_color vc on vc.id = fd.veil_color
+left join  spore_print_color spc on spc.id = fd.spore_print_color
+/*.   specific geographical point    */
+where  GetDistanceKM(fd.lat, fd.lon, 46.4504, 62.4556) <= 10.00 ;
+
+
+
+
+select  distinct
+cc.description as cap_color, 
+gc.description as gill_color,
+scar.description as stalk_color_above_ring  ,
+vc.description as veil_color,
+spc.description as spore_print_color
+from
+field_data as fd
+
+/*.   specific geographical point    */
+left join (
+           select id, lat, lon
+           from field_data
+           where id = (select max(id) from field_data)
+          ) md
+          on fd.id = md.id
+left join  cap_color cc on cc.id = fd.cap_color
+left join  gill_color gc on gc.id = fd.gill_color
+left join  stalk_color_above_ring scar on scar.id = fd.stalk_color_above_ring 
+left join  veil_color vc on vc.id = fd.veil_color
+left join  spore_print_color spc on spc.id = fd.spore_print_color
+where  GetDistanceKM(fd.lat, fd.lon, md.lat, md.lon) <= 10.00 ;
+
+
+
+
+
+
+
+
